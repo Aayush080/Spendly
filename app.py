@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime
 
 from flask import Flask, render_template, request, redirect, url_for, session
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -128,10 +129,30 @@ def profile():
     initials = "".join(part[0] for part in user_row["name"].split()[:2]).upper()
     user = {**user_row, "initials": initials}
 
-    stats = get_summary_stats(user_id)
-    transactions = get_recent_transactions(user_id, limit=10)
+    start_date_raw = request.args.get("start_date", "").strip()
+    end_date_raw = request.args.get("end_date", "").strip()
 
-    raw_categories = get_category_breakdown(user_id)
+    start_date, end_date = None, None
+    error = None
+
+    if start_date_raw and end_date_raw:
+        try:
+            parsed_start = datetime.strptime(start_date_raw, "%Y-%m-%d")
+            parsed_end = datetime.strptime(end_date_raw, "%Y-%m-%d")
+        except ValueError:
+            error = "Please enter valid dates in YYYY-MM-DD format."
+        else:
+            if parsed_start > parsed_end:
+                error = "Start date must be on or before end date."
+            else:
+                start_date, end_date = start_date_raw, end_date_raw
+
+    stats = get_summary_stats(user_id, start_date=start_date, end_date=end_date)
+    transactions = get_recent_transactions(
+        user_id, limit=10, start_date=start_date, end_date=end_date
+    )
+
+    raw_categories = get_category_breakdown(user_id, start_date=start_date, end_date=end_date)
     categories = [
         {"name": c["name"], "total": c["amount"], "percent": c["pct"]}
         for c in raw_categories
@@ -140,6 +161,8 @@ def profile():
     return render_template(
         "profile.html",
         user=user, stats=stats, transactions=transactions, categories=categories,
+        start_date=start_date_raw, end_date=end_date_raw,
+        filter_active=bool(start_date and end_date), error=error,
     )
 
 
