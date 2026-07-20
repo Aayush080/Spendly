@@ -4,6 +4,12 @@ from flask import Flask, render_template, request, redirect, url_for, session
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from database.db import get_db, init_db, seed_db
+from database.queries import (
+    get_user_by_id,
+    get_summary_stats,
+    get_recent_transactions,
+    get_category_breakdown,
+)
 
 app = Flask(__name__)
 app.secret_key = "spendly-dev-secret-key"
@@ -113,35 +119,22 @@ def profile():
     if not session.get("user_id"):
         return redirect(url_for("login"))
 
-    user = {
-        "name": "Demo User",
-        "email": "demo@spendly.com",
-        "initials": "DU",
-        "member_since": "July 2026",
-    }
+    user_id = session["user_id"]
 
-    stats = {
-        "total_spent": 6869.00,
-        "transaction_count": 8,
-        "top_category": "Shopping",
-    }
+    user_row = get_user_by_id(user_id)
+    if user_row is None:
+        session.clear()
+        return redirect(url_for("login"))
+    initials = "".join(part[0] for part in user_row["name"].split()[:2]).upper()
+    user = {**user_row, "initials": initials}
 
-    transactions = [
-        {"date": "2026-07-22", "description": "Miscellaneous",       "category": "Other",         "amount": 200.00},
-        {"date": "2026-07-18", "description": "New running shoes",   "category": "Shopping",      "amount": 2400.00},
-        {"date": "2026-07-14", "description": "Lunch with friends",  "category": "Food",          "amount": 150.00},
-        {"date": "2026-07-12", "description": "Movie tickets",       "category": "Entertainment", "amount": 899.00},
-        {"date": "2026-07-09", "description": "Pharmacy purchase",   "category": "Health",        "amount": 650.00},
-    ]
+    stats = get_summary_stats(user_id)
+    transactions = get_recent_transactions(user_id, limit=10)
 
+    raw_categories = get_category_breakdown(user_id)
     categories = [
-        {"name": "Shopping",      "total": 2400.00, "percent": 100},
-        {"name": "Bills",         "total": 1800.00, "percent": 75},
-        {"name": "Entertainment", "total": 899.00,  "percent": 37},
-        {"name": "Health",        "total": 650.00,  "percent": 27},
-        {"name": "Food",          "total": 470.00,  "percent": 20},
-        {"name": "Transport",     "total": 450.00,  "percent": 19},
-        {"name": "Other",         "total": 200.00,  "percent": 8},
+        {"name": c["name"], "total": c["amount"], "percent": c["pct"]}
+        for c in raw_categories
     ]
 
     return render_template(
