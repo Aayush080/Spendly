@@ -8,6 +8,12 @@ from database.db import get_db, init_db, seed_db
 app = Flask(__name__)
 app.secret_key = "spendly-dev-secret-key"
 
+
+@app.template_filter("inr")
+def format_inr(value):
+    return f"₹{value:,.0f}"
+
+
 with app.app_context():
     init_db()
     seed_db()
@@ -104,7 +110,44 @@ def logout():
 
 @app.route("/profile")
 def profile():
-    return "Profile page — coming in Step 4"
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    user = {
+        "name": "Demo User",
+        "email": "demo@spendly.com",
+        "initials": "DU",
+        "member_since": "July 2026",
+    }
+
+    stats = {
+        "total_spent": 6869.00,
+        "transaction_count": 8,
+        "top_category": "Shopping",
+    }
+
+    transactions = [
+        {"date": "2026-07-22", "description": "Miscellaneous",       "category": "Other",         "amount": 200.00},
+        {"date": "2026-07-18", "description": "New running shoes",   "category": "Shopping",      "amount": 2400.00},
+        {"date": "2026-07-14", "description": "Lunch with friends",  "category": "Food",          "amount": 150.00},
+        {"date": "2026-07-12", "description": "Movie tickets",       "category": "Entertainment", "amount": 899.00},
+        {"date": "2026-07-09", "description": "Pharmacy purchase",   "category": "Health",        "amount": 650.00},
+    ]
+
+    categories = [
+        {"name": "Shopping",      "total": 2400.00, "percent": 100},
+        {"name": "Bills",         "total": 1800.00, "percent": 75},
+        {"name": "Entertainment", "total": 899.00,  "percent": 37},
+        {"name": "Health",        "total": 650.00,  "percent": 27},
+        {"name": "Food",          "total": 470.00,  "percent": 20},
+        {"name": "Transport",     "total": 450.00,  "percent": 19},
+        {"name": "Other",         "total": 200.00,  "percent": 8},
+    ]
+
+    return render_template(
+        "profile.html",
+        user=user, stats=stats, transactions=transactions, categories=categories,
+    )
 
 
 @app.route("/expenses/add")
